@@ -50,25 +50,6 @@ public class UserControllerTest {
     }
 
 
-    // metodo generico para peticiones post
-    public <T> ResponseEntity<T> postSignup(Object request, Class<T> response) {
-        return testRestTemplate.postForEntity(API_1_0_USERS, request, response);
-    }
-
-    public <T> ResponseEntity<T> getUsers(ParameterizedTypeReference<T> responseType) {
-        return testRestTemplate.exchange(API_1_0_USERS, HttpMethod.GET, null, responseType);
-    }
-
-    public <T> ResponseEntity<T> getUsers(String path, ParameterizedTypeReference<T> responseType) {
-        return testRestTemplate.exchange(path, HttpMethod.GET, null, responseType);
-    }
-
-    //Authenticate
-    private void authenticate(String username) {
-        testRestTemplate.getRestTemplate()
-                .getInterceptors().add(new BasicAuthenticationInterceptor(username, "P4ssword"));
-    }
-
 
     @Test
     public void postUser_whenUserIsValid_receiveOk() {
@@ -389,8 +370,28 @@ public class UserControllerTest {
         authenticate("user1");
         ResponseEntity<TestPage<Object>> response = getUsers(new ParameterizedTypeReference<TestPage<Object>>() {});
         assertThat(Objects.requireNonNull(response.getBody()).getTotalElements()).isEqualTo(2);
+    }
 
 
+
+
+    // metodo generico para peticiones post
+    public <T> ResponseEntity<T> postSignup(Object request, Class<T> response) {
+        return testRestTemplate.postForEntity(API_1_0_USERS, request, response);
+    }
+
+    public <T> ResponseEntity<T> getUsers(ParameterizedTypeReference<T> responseType) {
+        return testRestTemplate.exchange(API_1_0_USERS, HttpMethod.GET, null, responseType);
+    }
+
+    public <T> ResponseEntity<T> getUsers(String path, ParameterizedTypeReference<T> responseType) {
+        return testRestTemplate.exchange(path, HttpMethod.GET, null, responseType);
+    }
+
+    //Authenticate
+    private void authenticate(String username) {
+        testRestTemplate.getRestTemplate()
+                .getInterceptors().add(new BasicAuthenticationInterceptor(username, "P4ssword"));
     }
 
 
