@@ -37,6 +37,12 @@ public class UserController {
                 .map(UserVM::new);
     }
 
+    @GetMapping("/users/{username}")
+    public UserVM getUserByName(@PathVariable String username){
+        User user = userService.getByUsername(username);
+        return new UserVM(user);
+    }
+
 
 
     @ExceptionHandler({MethodArgumentNotValidException.class})
