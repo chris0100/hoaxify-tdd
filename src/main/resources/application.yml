@@ -9,3 +9,8 @@ spring:
     console:
       enabled: true
       path: /h2-console
+  data:
+    web:
+      pageable:
+        default-page-size: 10
+        max-page-size: 100

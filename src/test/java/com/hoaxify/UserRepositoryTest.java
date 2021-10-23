@@ -9,6 +9,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import static com.hoaxify.TestUtil.createValidUser;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(SpringRunner.class)
@@ -24,12 +25,7 @@ public class UserRepositoryTest {
 
     @Test
     public void findByUsername_whenUserExists_returnsUser(){
-        User user = new User();
-        user.setUsername("test-user");
-        user.setDisplayName("test-Display");
-        user.setPassword("P4ssword");
-
-        testEntityManager.persist(user);
+        testEntityManager.persist(createValidUser());
 
         User inDB = userRepository.findByUsername("test-user");
         assertThat(inDB).isNotNull();

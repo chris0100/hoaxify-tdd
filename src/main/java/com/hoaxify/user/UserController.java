@@ -1,8 +1,12 @@
 package com.hoaxify.user;
 
 import com.hoaxify.error.ApiError;
+import com.hoaxify.shared.CurrentUser;
 import com.hoaxify.shared.GenericResponse;
+import com.hoaxify.user.vm.UserVM;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -25,6 +29,12 @@ public class UserController {
     public GenericResponse createUser(@Valid @RequestBody User user){
         userService.save(user);
         return GenericResponse.builder().message("User saved").build();
+    }
+
+    @GetMapping("/users")
+    public Page<UserVM> getUsers(@CurrentUser User loggedInUser, Pageable page){
+        return userService.getUsers(loggedInUser, page)
+                .map(UserVM::new);
     }
 
 
