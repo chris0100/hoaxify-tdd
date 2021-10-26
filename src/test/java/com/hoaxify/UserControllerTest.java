@@ -4,6 +4,9 @@ import com.hoaxify.error.ApiError;
 import com.hoaxify.shared.GenericResponse;
 import com.hoaxify.user.User;
 import com.hoaxify.user.UserService;
+import com.hoaxify.user.vm.UserUpdateVM;
+import com.hoaxify.user.vm.UserVM;
+import org.apache.commons.io.FileUtils;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -11,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +23,8 @@ import org.springframework.http.client.support.BasicAuthenticationInterceptor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,7 +55,6 @@ public class UserControllerTest {
         userRepository.deleteAll();
         testRestTemplate.getRestTemplate().getInterceptors().clear();
     }
-
 
 
     @Test
@@ -355,7 +361,8 @@ public class UserControllerTest {
     @Test
     public void getUsers_whenPageIsNegative_receiveFirstPage() {
         String path = API_1_0_USERS + "?page=-5";
-        final ResponseEntity<TestPage<Object>> response = getUsers(path, new ParameterizedTypeReference<TestPage<Object>>() {});
+        final ResponseEntity<TestPage<Object>> response = getUsers(path, new ParameterizedTypeReference<TestPage<Object>>() {
+        });
 
         assertThat(Objects.requireNonNull(response.getBody()).getNumber()).isZero();
     }
@@ -368,13 +375,14 @@ public class UserControllerTest {
         userService.save(createValidUser("user3"));
 
         authenticate("user1");
-        ResponseEntity<TestPage<Object>> response = getUsers(new ParameterizedTypeReference<TestPage<Object>>() {});
+        ResponseEntity<TestPage<Object>> response = getUsers(new ParameterizedTypeReference<TestPage<Object>>() {
+        });
         assertThat(Objects.requireNonNull(response.getBody()).getTotalElements()).isEqualTo(2);
     }
 
 
     @Test
-    public void getUserByUsername_whenUserExist_receiveOk(){
+    public void getUserByUsername_whenUserExist_receiveOk() {
         String username = "test-user";
         userService.save(createValidUser(username));
         final ResponseEntity<Object> response = getUser(username, Object.class);
@@ -383,7 +391,7 @@ public class UserControllerTest {
 
 
     @Test
-    public void getUserByUsername_whenUserExist_receiveUserWithoutPassword(){
+    public void getUserByUsername_whenUserExist_receiveUserWithoutPassword() {
         String username = "test-user";
         userService.save(createValidUser(username));
         final ResponseEntity<String> response = getUser(username, String.class);
@@ -392,18 +400,111 @@ public class UserControllerTest {
 
 
     @Test
-    public void getUserByUsername_whenUserDoesNotExist_receiveNotFound(){
+    public void getUserByUsername_whenUserDoesNotExist_receiveNotFound() {
         final ResponseEntity<Object> response = getUser("unknown-user", Object.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
 
     @Test
-    public void getUserByUsername_whenUserDoesNotExist_receiveApiError(){
+    public void getUserByUsername_whenUserDoesNotExist_receiveApiError() {
         final ResponseEntity<ApiError> response = getUser("unknown-user", ApiError.class);
         assertThat(Objects.requireNonNull(response.getBody()).getMessage()).contains("unknown-use");
     }
 
+
+    @Test
+    public void putUser_whenUnauthorizedUserSendsTheRequest_receiveUnauthorized() {
+        final ResponseEntity<Object> response = putUser(123, null, Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+
+    @Test
+    public void putUser_whenAuthorizedUserSendsUpdateForAnotherUser_receiveForbidden() {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+
+        long anotherUserId = user.getId() + 123;
+        final ResponseEntity<Object> response = putUser(anotherUserId, null, Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+
+    @Test
+    public void putUser_whenUnauthorizedUserSendsTheRequest_receiveApiError() {
+        final ResponseEntity<ApiError> response = putUser(123, null, ApiError.class);
+        assertThat(Objects.requireNonNull(response.getBody()).getUrl()).contains("users/123");
+    }
+
+
+    @Test
+    public void putUser_whenAuthorizedUserSendsUpdateForAnotherUser_receiveApiError() {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+
+        long anotherUserId = user.getId() + 123;
+        final ResponseEntity<ApiError> response = putUser(anotherUserId, null, ApiError.class);
+        assertThat(Objects.requireNonNull(response.getBody()).getUrl()).contains("users/" + anotherUserId);
+    }
+
+
+    @Test
+    public void putUser_whenValidRequestBodyFromAuthorizedUser_receiveOk() {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        final ResponseEntity<Object> response = putUser(user.getId(), requestEntity, Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+
+    @Test
+    public void putUser_whenValidRequestBodyFromAuthorizedUser_displayNameUpdated() {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        putUser(user.getId(), requestEntity, Object.class);
+
+        User userInDB = userRepository.findByUsername("user1");
+        assertThat(userInDB.getDisplayName()).isEqualTo(updateUser.getDisplayName());
+    }
+
+
+    @Test
+    public void putUser_whenValidRequestBodyFromAuthorizedUser_receiveUserVMWithUpdatedDisplayName() {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        final ResponseEntity<UserVM> response = putUser(user.getId(), requestEntity, UserVM.class);
+
+        assertThat(Objects.requireNonNull(response.getBody()).getDisplayName()).isEqualTo(updateUser.getDisplayName());
+    }
+
+
+    @Test
+    public void putUser_withValidRequestBodyWithSupportedImageFromAuthorizedUser_receiveUserVMWithRandomImageName() throws IOException {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+
+        ClassPathResource imageResource = new ClassPathResource("profile.png");
+
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+        byte[] imageArr = FileUtils.readFileToByteArray(imageResource.getFile());
+        String imageString = Base64.getEncoder().encodeToString(imageArr);
+        updateUser.setImage(imageString);
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        final ResponseEntity<UserVM> response = putUser(user.getId(), requestEntity, UserVM.class);
+
+        assertThat(Objects.requireNonNull(response.getBody()).getImage()).isNotEqualTo("profile-image.png");
+    }
 
 
 
@@ -420,15 +521,29 @@ public class UserControllerTest {
         return testRestTemplate.exchange(path, HttpMethod.GET, null, responseType);
     }
 
-    public <T> ResponseEntity<T> getUser(String username, Class<T> responseType){
+    public <T> ResponseEntity<T> getUser(String username, Class<T> responseType) {
         String path = API_1_0_USERS + "/" + username;
         return testRestTemplate.getForEntity(path, responseType);
     }
+
+    public <T> ResponseEntity<T> putUser(long id, HttpEntity<?> requestEntity, Class<T> responseType) {
+        String path = API_1_0_USERS + "/" + id;
+        return testRestTemplate.exchange(path, HttpMethod.PUT, requestEntity, responseType);
+    }
+
 
     //Authenticate
     private void authenticate(String username) {
         testRestTemplate.getRestTemplate()
                 .getInterceptors().add(new BasicAuthenticationInterceptor(username, "P4ssword"));
+    }
+
+
+    // Create valid user update VM
+    private UserUpdateVM createValidUserUpdateVM() {
+        UserUpdateVM updateUser = new UserUpdateVM();
+        updateUser.setDisplayName("newDisplayName");
+        return updateUser;
     }
 
 

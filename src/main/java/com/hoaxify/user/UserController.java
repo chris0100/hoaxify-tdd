@@ -3,11 +3,13 @@ package com.hoaxify.user;
 import com.hoaxify.error.ApiError;
 import com.hoaxify.shared.CurrentUser;
 import com.hoaxify.shared.GenericResponse;
+import com.hoaxify.user.vm.UserUpdateVM;
 import com.hoaxify.user.vm.UserVM;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -44,7 +46,15 @@ public class UserController {
     }
 
 
+    @PutMapping("/users/{id:[0-9]+}")
+    @PreAuthorize("#id == principal.id")
+    public UserVM updateUser(@PathVariable long id, @RequestBody(required = false) UserUpdateVM userUpdate){
+        User updated = userService.update(id, userUpdate);
+        return new UserVM(updated);
+    }
 
+
+    // maneja los errores de valitadionErrors
     @ExceptionHandler({MethodArgumentNotValidException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ApiError handleValidationException(MethodArgumentNotValidException exception, HttpServletRequest request){
