@@ -2,6 +2,7 @@ package com.hoaxify.user;
 
 import com.hoaxify.UserRepository;
 import com.hoaxify.error.NotFoundException;
+import com.hoaxify.file.FileService;
 import com.hoaxify.user.vm.UserUpdateVM;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -9,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
+import java.io.IOException;
 
 @Service
 public class UserService {
@@ -19,6 +20,9 @@ public class UserService {
 
     @Autowired
     UserRepository userRepository;
+
+    @Autowired
+    FileService fileService;
 
     public User save(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
@@ -42,10 +46,17 @@ public class UserService {
 
     public User update(long id, UserUpdateVM userUpdate) {
         User inDB = userRepository.getById(id);
-        String savedImageName = inDB.getUsername() + UUID.randomUUID().toString().replace("-", "");
-
         inDB.setDisplayName(userUpdate.getDisplayName());
-        inDB.setImage(savedImageName);
+
+        if (userUpdate.getImage() != null){
+            String savedImageName;
+            try {
+                savedImageName = fileService.saveProfileImage(userUpdate.getImage());
+                inDB.setImage(savedImageName);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
         return userRepository.save(inDB);
     }
 }
