@@ -610,6 +610,45 @@ public class UserControllerTest {
     }
 
 
+    @Test
+    public void putUser_withValidRequestBodyWithTXTImageFromAuthorizedUser_receivedValidationErrorForProfileImage() throws IOException {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+        String imageString = readFileToBase64("test-txt.txt");
+        updateUser.setImage(imageString);
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        final ResponseEntity<ApiError> response = putUser(user.getId(), requestEntity, ApiError.class);
+
+        Map<String, String> validationErrors = Objects.requireNonNull(response.getBody()).getValidationErrors();
+        assertThat(validationErrors.get("image")).isEqualTo("Only PNG and JPG files are allowed");
+    }
+
+
+
+    @Test
+    public void putUser_withValidRequestBodyWithJPGImageForUserWhoHasImage_removeOldImageFromStorage() throws IOException {
+        User user = userService.save(createValidUser("user1"));
+        authenticate(user.getUsername());
+
+        UserUpdateVM updateUser = createValidUserUpdateVM();
+        String imageString = readFileToBase64("test-jpg.jpg");
+        updateUser.setImage(imageString);
+
+        HttpEntity<UserUpdateVM> requestEntity = new HttpEntity<>(updateUser);
+        final ResponseEntity<UserVM> response = putUser(user.getId(), requestEntity, UserVM.class);
+
+        putUser(user.getId(), requestEntity, UserVM.class);
+        String storedImageName = Objects.requireNonNull(response.getBody()).getImage();
+        String profilePicturePath = appConfiguration.getFullProfileImagePath() + "/" + storedImageName;
+
+        File storedImage = new File(profilePicturePath);
+        assertThat(storedImage.exists()).isFalse();
+    }
+
+
 
 
 
