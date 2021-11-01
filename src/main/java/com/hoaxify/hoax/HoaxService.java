@@ -31,6 +31,6 @@ public class HoaxService {
 
     public Page<Hoax> getHoaxesOfUser(String username, Pageable pageable) {
         User inDB = userService.getByUsername(username);
-
+        return hoaxRepository.findByUser(inDB, pageable);
     }
 }

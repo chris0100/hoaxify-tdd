@@ -283,6 +283,45 @@ public class HoaxControllerTest {
     }
 
 
+    @Test
+    public void getHoaxesOfUser_whenUserExistWithHoax_receivePageWithHoaxVM() {
+        User user = userService.save(createValidUser("user1"));
+        hoaxService.save(user, createValidHoax());
+
+        ResponseEntity<TestPage<HoaxVM>> response = getHoaxesOfUser("user1", new ParameterizedTypeReference<TestPage<HoaxVM>>() {});
+        HoaxVM storedHoax = Objects.requireNonNull(response.getBody()).getContent().get(0);
+        assertThat(storedHoax.getUser().getUsername()).isEqualTo("user1");
+    }
+
+
+    @Test
+    public void getHoaxesOfUser_whenUserExistWithMultipleHoaxes_receivePageWithMatchingHoaxesCount() {
+        User user = userService.save(createValidUser("user1"));
+        hoaxService.save(user, createValidHoax());
+        hoaxService.save(user, createValidHoax());
+        hoaxService.save(user, createValidHoax());
+
+
+        ResponseEntity<TestPage<HoaxVM>> response = getHoaxesOfUser("user1", new ParameterizedTypeReference<TestPage<HoaxVM>>() {});
+        assertThat(Objects.requireNonNull(response.getBody()).getTotalElements()).isEqualTo(3);
+    }
+
+
+    @Test
+    public void getHoaxesOfUser_whenMultipleUserExistWithMultipleHoaxes_receivePageWithMatchingHoaxesCount() {
+        User userWithThreeHoaxes = userService.save(createValidUser("user1"));
+        IntStream.rangeClosed(1, 3).forEach(i -> hoaxService.save(userWithThreeHoaxes, createValidHoax()));
+
+        User userWithFiveHoaxes = userService.save(createValidUser("user2"));
+        IntStream.rangeClosed(1, 5).forEach(i -> hoaxService.save(userWithFiveHoaxes, createValidHoax()));
+
+        ResponseEntity<TestPage<HoaxVM>> response = getHoaxesOfUser(userWithFiveHoaxes.getUsername(),
+                new ParameterizedTypeReference<TestPage<HoaxVM>>() {});
+
+        assertThat(Objects.requireNonNull(response.getBody()).getTotalElements()).isEqualTo(5);
+    }
+
+
 
     //************************************************************************************
     //************************ METHODS ***************************************************
