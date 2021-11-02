@@ -1,6 +1,9 @@
 package com.hoaxify;
 
+import com.hoaxify.configuration.AppConfiguration;
 import com.hoaxify.error.ApiError;
+import com.hoaxify.file.FileAttachmentRepository;
+import com.hoaxify.file.FileService;
 import com.hoaxify.hoax.Hoax;
 import com.hoaxify.hoax.HoaxRepository;
 import com.hoaxify.hoax.HoaxService;
@@ -25,6 +28,8 @@ import org.springframework.test.context.junit4.SpringRunner;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.PersistenceUnit;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,6 +38,7 @@ import java.util.stream.IntStream;
 
 import static com.hoaxify.TestUtil.createValidHoax;
 import static com.hoaxify.TestUtil.createValidUser;
+import static org.apache.tomcat.util.http.fileupload.FileUtils.cleanDirectory;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(SpringRunner.class)
@@ -57,14 +63,25 @@ public class HoaxControllerTest {
     @Autowired
     private HoaxService hoaxService;
 
+    @Autowired
+    FileAttachmentRepository fileAttachmentRepository;
+
+    @Autowired
+    FileService fileService;
+
+    @Autowired
+    AppConfiguration appConfiguration;
+
     @PersistenceUnit
     private EntityManagerFactory entityManagerFactory;
 
     @Before
-    public void cleanup() {
+    public void cleanup() throws IOException {
+        fileAttachmentRepository.deleteAll();
         hoaxRepository.deleteAll();
         userRepository.deleteAll();
         testRestTemplate.getRestTemplate().getInterceptors().clear();
+        cleanDirectory(new File(appConfiguration.getFullAttachmentsPath()));
     }
 
 
