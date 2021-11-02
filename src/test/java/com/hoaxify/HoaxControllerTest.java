@@ -9,6 +9,7 @@ import com.hoaxify.hoax.Hoax;
 import com.hoaxify.hoax.HoaxRepository;
 import com.hoaxify.hoax.HoaxService;
 import com.hoaxify.hoax.vm.HoaxVM;
+import com.hoaxify.shared.GenericResponse;
 import com.hoaxify.user.User;
 import com.hoaxify.user.UserService;
 import org.junit.After;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -619,6 +621,112 @@ public class HoaxControllerTest {
         assertThat(Objects.requireNonNull(response.getBody()).getAttachment().getName()).isEqualTo(savedFile.getName());
     }
 
+
+    @Test
+    public void deleteHoax_whenUserIsUnAuthorized_receiveUnauthorized(){
+        final ResponseEntity<Object> response = deleteHoax(555, Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+
+    @Test
+    public void deleteHoax_whenUserIsAuthorized_receiveOk(){
+        User user = userService.save(createValidUser("user1"));
+        authenticate("user1");
+        Hoax hoax = hoaxService.save(user, createValidHoax());
+
+        final ResponseEntity<Object> response = deleteHoax(hoax.getId(), Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+
+    @Test
+    public void deleteHoax_whenUserIsAuthorized_receiveGenericResponse(){
+        User user = userService.save(createValidUser("user1"));
+        authenticate("user1");
+        Hoax hoax = hoaxService.save(user, createValidHoax());
+
+        final ResponseEntity<GenericResponse> response = deleteHoax(hoax.getId(), GenericResponse.class);
+        assertThat(Objects.requireNonNull(response.getBody()).getMessage()).isNotNull();
+    }
+
+
+    @Test
+    public void deleteHoax_whenUserIsAuthorized_hoaxRemovedFromDatabase(){
+        User user = userService.save(createValidUser("user1"));
+        authenticate("user1");
+        Hoax hoax = hoaxService.save(user, createValidHoax());
+
+        deleteHoax(hoax.getId(), Object.class);
+        Optional<Hoax> inDB = hoaxRepository.findById(hoax.getId());
+        assertThat(inDB).isNotPresent();
+    }
+
+
+    @Test
+    public void deleteHoax_whenHoaxIsOwnedByAnotherUser_receiveForbidden(){
+        userService.save(createValidUser("user1"));
+        authenticate("user1");
+
+        User hoaxOwner = userService.save(createValidUser("hoax-owner"));
+        Hoax hoax = hoaxService.save(hoaxOwner, createValidHoax());
+
+        final ResponseEntity<Object> response = deleteHoax(hoax.getId(), Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+
+    @Test
+    public void deleteHoax_whenHoaxNotExist_receiveForbidden(){
+        userService.save(createValidUser("user1"));
+        authenticate("user1");
+
+        final ResponseEntity<Object> response = deleteHoax(555, Object.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+
+    @Test
+    public void deleteHoax_whenHoaxHasAttachment_attachmentRemovedFromDatabase() throws IOException {
+        userService.save(TestUtil.createValidUser("user1"));
+        authenticate("user1");
+
+        MultipartFile file = createFile();
+        FileAttachment savedFile = fileService.saveAttachment(file);
+
+        Hoax hoax = createValidHoax();
+        hoax.setAttachment(savedFile);
+
+        final ResponseEntity<HoaxVM> response = postHoax(hoax, HoaxVM.class);
+
+        long hoaxId = Objects.requireNonNull(response.getBody()).getId();
+        deleteHoax(hoaxId, Object.class);
+        Optional<FileAttachment> optionalFileAttachment = fileAttachmentRepository.findById(savedFile.getId());
+
+        assertThat(optionalFileAttachment).isNotPresent();
+    }
+
+
+    @Test
+    public void deleteHoax_whenHoaxHasAttachment_attachmentRemovedFromStorage() throws IOException {
+        userService.save(TestUtil.createValidUser("user1"));
+        authenticate("user1");
+
+        MultipartFile file = createFile();
+        FileAttachment savedFile = fileService.saveAttachment(file);
+
+        Hoax hoax = createValidHoax();
+        hoax.setAttachment(savedFile);
+
+        final ResponseEntity<HoaxVM> response = postHoax(hoax, HoaxVM.class);
+
+        long hoaxId = Objects.requireNonNull(response.getBody()).getId();
+        deleteHoax(hoaxId, Object.class);
+
+        String attachmentFolderPath = appConfiguration.getFullAttachmentsPath() + "/" + savedFile.getName();
+        File storedImage = new File(attachmentFolderPath);
+        assertThat(storedImage).doesNotExist();
+    }
 
     //************************************************************************************
     //************************ METHODS ***************************************************

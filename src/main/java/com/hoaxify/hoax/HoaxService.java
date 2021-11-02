@@ -2,6 +2,7 @@ package com.hoaxify.hoax;
 
 import com.hoaxify.file.FileAttachment;
 import com.hoaxify.file.FileAttachmentRepository;
+import com.hoaxify.file.FileService;
 import com.hoaxify.user.User;
 import com.hoaxify.user.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,9 @@ public class HoaxService {
 
     @Autowired
     FileAttachmentRepository fileAttachmentRepository;
+
+    @Autowired
+    FileService fileService;
 
 
     public Hoax save(User user, Hoax hoax){
@@ -90,5 +94,13 @@ public class HoaxService {
 
     private Specification<Hoax> idGreaterThan(long id){
         return ((root, query, criteriaBuilder) -> criteriaBuilder.greaterThan(root.get("id"), id));
+    }
+
+    public void deleteHoax(long id) {
+        Hoax hoax = hoaxRepository.getById(id);
+        if (hoax.getAttachment() != null){
+            fileService.deleteAttachmentImage(hoax.getAttachment().getName());
+        }
+        hoaxRepository.deleteById(id);
     }
 }
